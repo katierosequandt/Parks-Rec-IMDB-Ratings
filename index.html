@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<style type="text/css">
+  
+  body {
+    font-family: arial, sans;
+    font-size: 11px;
+  }
+  
+  
+  .axis line,
+  .axis path {
+    fill: none;
+    stroke: #000;
+    shape-rendering: crispEdges;
+  }
+
+  .line:hover {
+    stroke:black;
+  }
+
+  rect:hover {
+    stroke:black;
+/*    stroke-width:2;*/
+  }
+
+  .tooltip {
+    font-family: arial, sans;
+    background-repeat: no-repeat;
+    background-position: 2px 20px; 
+    background: #fff;                
+    border: 4px #ff00ff;
+    border: solid 1px #DEDEDE;
+    padding: 8px;
+    opacity: .9;
+    box-shadow: 0 2px 20px 0 rgba(0,0,0,0.3)
+   }
+
+</style>
+
+<body>
+
+<h1>Popularity of Parks and Recreation Over Seven Seasons</h1>
+<h3>Hover to see IMDB ratings for episodes. Lines represent season averages.</h3>
+
+</body>
+
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+
+<script type="text/javascript">
+  
+//set margins and define width and height  
+var margin = {top: 20, right: 50, bottom: 20, left: 10};
+
+var width = 720 - margin.left - margin.right,
+    height = 400 - margin.top - margin.bottom;
+
+//append an svg to the page
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+//set ranges of x and y scales to width & height of chart, set y domain to 0-10 (ratings scale)
+var yScale = d3.scale.linear()
+    .range([height, 0])
+    .domain([0, 10]);
+
+var xScale = d3.scale.ordinal()
+    .rangeBands([0, width]);
+
+//create x asnd y axes
+var xAxis = d3.svg.axis()
+    .scale(xScale)
+    .orient("bottom")
+    .tickFormat("");
+
+var yAxis = d3.svg.axis()
+    .scale(yScale)
+    .orient("left");
+
+//create colors var for color-coding by season
+var colors = {
+  "0": ["#01665e", "#000101"],
+  "1": ["#8c510a", "#2D1A03"],
+  "2": ["#d8b365", "#AC822B"],
+  "3": ["#f6e8c3", "#E9C66A"],
+  "4": ["#f5f5f5", "#C2C2C2"],
+  "5": ["#c7eae5", "#7DCEC3"],
+  "6": ["#5ab4ac", "#34736E"],
+};
+
+//create arrays that will track all ratings for each season, and the avg rating for each season
+var seasonRatings = {};
+var seasonAvg = {};
+
+
+//ready fuction and load ratings.tsv
+var data = d3.tsv("laworder_ratings.tsv", ready);
+
+function ready(error, data) {
+  if (error) return console.warn(error);
+  
+  //force ratings & # of raters to numbers, create season variable from epNum data
+  data.forEach(function(d) {
+    d.rating = +d.rating;
+    d.ratingNum = +d.ratingNum;
+    d.season = d.epNum.split(".")[0];
+
+    seasonRatings[d.season] = [];
+  });
+
+  data.forEach(function(d) {
+    seasonRatings[d.season].push(d.rating);
+  });
+
+  //calculate the average rating for each season, store results in seasonAvg
+  for (var i in seasonRatings) {
+    var sum = 0;
+    for (j = 0; j < seasonRatings[i].length; j++) {
+      sum = sum + seasonRatings[i][j];
+    }
+    var avg = sum / seasonRatings[i].length;
+    //round avg to 2 decimal points, store in seasonAvg array
+    seasonAvg[i] = Math.round(avg*Math.pow(10,2))/Math.pow(10,2);
+  }
+
+
+    //create tooltip for hover display of data
+  var tooltip = d3.select("body")
+    .append("div")
+    .attr("class", "tooltip")
+    .style("position", "absolute")
+    .style("z-index", "10")
+    .style("visibility", "hidden");
+
+  
+  xScale.domain(data.map(function(d) {
+        return d.epNum;
+    }));
+
+
+  //append x and y axes
+  svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(" + margin.left + "," + height + ")")
+      .call(xAxis);
+
+  svg.append("g")
+      .attr("class", "y axis")
+      .attr("transform", "translate(" + margin.left + ",0)")
+      .call(yAxis);
+
+  // append rects
+  var rect = svg.append("g")
+      .attr("class", "rect-group")
+      .selectAll("rect")
+      .data(data)
+    .enter()
+      .append("rect")
+      .attr("width", xScale.rangeBand())
+      .attr("height", function(d) {
+        return yScale(0) - yScale(d.rating);
+      })
+      .attr("y", function(d) {
+        return yScale(d.rating);
+      })
+      .attr("x", function(d) {
+        return xScale(d.epNum) + margin.left;
+      })
+      .attr("class", function(d) {
+        return "season" + d.season;
+      })
+      //look up season # in the colors variable & fill
+      .attr("fill", function(d) {
+        return colors[d.season % 7][0];
+      })
+      //call tooltip on mouseover
+      .on("mouseover", function(d) {
+        tooltip.html("Episode " + d.epNum + "(" + d.episode + "): " + d.rating);
+        tooltip.style("visibility", "visible");
+        tooltip.style("top", (d3.event.pageY-45)+"px").style("left",(d3.event.pageX-10)+"px");
+        d3.select(this)
+          .attr("fill", function(d) {
+            return colors[d.season % 7][1];
+          });
+      })
+      .on("mouseout", function() {
+        tooltip.style("visibility", "hidden");
+        d3.select(this)
+          .attr("fill", function(d) {
+            return colors[d.season % 7][0];
+          });
+     });
+
+
+  //function to draw a line representing the average rating for each season
+  function drawAvgLine(season) {
+
+    //find the x value of the first ep of the season
+    var x1 = d3.select(".season" + season)
+      .attr("x");
+
+    var barWidth = d3.select(".season" + season)
+      .attr("width");
+
+    //find the x value of the last ep of the season
+    var selectedSeason = d3.selectAll(".season" + season);
+   
+    var node = selectedSeason[0][selectedSeason[0].length -1];
+    var seasonRect = d3.select(node);
+    var x2 = parseFloat(seasonRect.attr("x"));
+
+    //append a line from the first ep to last ep in season, height = season average
+    svg.append("line")
+      .style("stroke", function(d) {
+        return colors[season % 7][1];
+      })
+      .style("stroke-width", "2.5px")
+      .attr("x1", x1)
+      .attr("y1", yScale(seasonAvg[season]))
+      .attr("x2", (parseFloat(x2) + parseFloat(barWidth)))
+      .attr("y2", yScale(seasonAvg[season]))
+      .on("mouseover", function() {
+        tooltip.html("Season " + season + " average rating: " + seasonAvg[season]);
+        tooltip.style("visibility", "visible");
+        tooltip.style("top", (d3.event.pageY-45)+"px").style("left",(d3.event.pageX-10)+"px");
+      })
+      .on("mouseout", function() {
+        return tooltip.style("visibility", "hidden");
+      });
+  }
+    console.log(seasonAvg);
+    //call function to draw season average line for each season
+    for (i in seasonAvg) {
+    drawAvgLine(i);
+  }
+    
+
+
+}
+
+</script>
